@@ -2,71 +2,41 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>ESP32 Environmental Dashboard (4 Nodes)</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nhom_19_WSN</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
-<!-- MQTT -->
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-<!-- Chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<!-- Excel -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
-body{
-  margin:0;
-  font-family:Segoe UI,system-ui;
-  background:#eef2ff;
-}
+body{margin:0;font-family:Segoe UI;background:#eef2ff}
 header{
-  background:#2563eb;
-  color:white;
-  padding:18px 24px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
+  background:#2563eb;color:white;
+  padding:16px 24px;
+  display:flex;justify-content:space-between;align-items:center
 }
 button{
-  background:#22c55e;
-  border:none;
-  color:white;
-  padding:10px 16px;
-  font-weight:600;
-  border-radius:8px;
-  cursor:pointer;
+  background:#22c55e;border:none;color:white;
+  padding:10px 16px;font-weight:700;border-radius:8px
 }
-button:hover{opacity:.85}
-
 .grid{
-  max-width:1800px;
-  margin:20px auto;
-  padding:0 16px;
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:20px;
+  max-width:1800px;margin:20px auto;padding:0 16px;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:20px
 }
 .card{
-  background:white;
-  border-radius:18px;
-  padding:18px;
-  box-shadow:0 12px 30px rgba(0,0,0,.12);
+  background:white;border-radius:18px;padding:18px;
+  box-shadow:0 12px 30px rgba(0,0,0,.12)
 }
 .card.alert{
-  border:3px solid #ef4444;
-}
-.card h3{
-  margin:0 0 10px;
+  border:4px solid #ef4444;
+  background:#fff1f2;
 }
 .metrics{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  text-align:center;
-  margin-bottom:10px;
+  display:grid;grid-template-columns:repeat(3,1fr);
+  text-align:center;margin-bottom:10px
 }
-.value{
-  font-size:30px;
-  font-weight:800;
-}
+.value{font-size:30px;font-weight:800}
 .temp{color:#ef4444}
 .hum{color:#3b82f6}
 .soil{color:#8b5cf6}
@@ -84,23 +54,20 @@ canvas{height:220px!important}
 <div class="grid" id="grid"></div>
 
 <script>
-/* ================= CONFIG ================= */
+/* ====== CONFIG ====== */
 const HOST="a736019f2a5e4fd98c17a4115be133f0.s1.eu.hivemq.cloud";
 const USERNAME="Nhom19WSN";
 const PASSWORD="Aenhom19@";
 const TOPIC="nodes/+/data";
-const TEMP_LIMIT = 50;
-/* ========================================= */
+const TEMP_LIMIT = 18; // 🔥 TEST NGƯỠNG 18
+/* =================== */
 
-const nodes = {};
-const charts = {};
-const excelData = [];
+const charts={}, excelData=[];
+const grid=document.getElementById("grid");
 
-const grid = document.getElementById("grid");
-
-// CREATE 4 NODES UI (GIỐNG HỆT)
+// UI 4 NODE GIỐNG HỆT
 for(let i=1;i<=4;i++){
-  grid.innerHTML += `
+  grid.innerHTML+=`
   <div class="card" id="card${i}">
     <h3>Node ${i}</h3>
     <div class="metrics">
@@ -112,9 +79,9 @@ for(let i=1;i<=4;i++){
   </div>`;
 }
 
-// INIT CHARTS
+// CHART
 for(let i=1;i<=4;i++){
-  charts[i] = new Chart(document.getElementById(`c${i}`),{
+  charts[i]=new Chart(document.getElementById(`c${i}`),{
     type:"line",
     data:{labels:[],datasets:[
       {label:"Temp °C",data:[],borderColor:"#ef4444",tension:.4},
@@ -126,31 +93,33 @@ for(let i=1;i<=4;i++){
 }
 
 // MQTT
-const client = mqtt.connect(`wss://${HOST}:8884/mqtt`,{
-  username:USERNAME,
-  password:PASSWORD,
-  reconnectPeriod:2000
+const client=mqtt.connect(`wss://${HOST}:8884/mqtt`,{
+  username:USERNAME,password:PASSWORD,reconnectPeriod:2000
 });
-
 client.on("connect",()=>client.subscribe(TOPIC));
 
 client.on("message",(topic,msg)=>{
-  const json = JSON.parse(msg.toString());
-  json.data.forEach(d=>{
-    const id = d.id;
-    if(id<1||id>4) return;
+  const payload=JSON.parse(msg.toString());
+  if(!payload.data) return;
 
-    const t=d.t, h=d.h, s=d.s;
-    document.getElementById(`t${id}`).innerHTML = t.toFixed(1)+"°C";
-    document.getElementById(`h${id}`).innerHTML = h.toFixed(1)+"%";
-    document.getElementById(`s${id}`).innerHTML = s.toFixed(1)+"%";
+  payload.data.slice(0,4).forEach((d,index)=>{
+    const node=index+1;
+    const t=Number(d.t), h=Number(d.h), s=Number(d.s);
 
-    // ALERT
-    document.getElementById(`card${id}`)
-      .classList.toggle("alert", t>=TEMP_LIMIT);
+    document.getElementById(`t${node}`).innerHTML=t.toFixed(1)+"°C";
+    document.getElementById(`h${node}`).innerHTML=h.toFixed(1)+"%";
+    document.getElementById(`s${node}`).innerHTML=s.toFixed(1)+"%";
 
-    const chart = charts[id];
-    const time = new Date().toLocaleTimeString();
+    // 🔥 ALERT – ĐẢM BẢO CHẠY
+    const card=document.getElementById(`card${node}`);
+    if(t>=TEMP_LIMIT){
+      card.classList.add("alert");
+    }else{
+      card.classList.remove("alert");
+    }
+
+    const chart=charts[node];
+    const time=new Date().toLocaleTimeString();
     chart.data.labels.push(time);
     chart.data.datasets[0].data.push(t);
     chart.data.datasets[1].data.push(h);
@@ -163,15 +132,15 @@ client.on("message",(topic,msg)=>{
 
     excelData.push({
       Time:new Date().toLocaleString(),
-      Node:id,Temp:t,Hum:h,Soil:s
+      Node:node,Temp:t,Hum:h,Soil:s
     });
   });
 });
 
-// EXPORT EXCEL
+// EXCEL
 function exportExcel(){
-  const ws = XLSX.utils.json_to_sheet(excelData);
-  const wb = XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(excelData);
+  const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,"Data");
   XLSX.writeFile(wb,"ESP32_4Node_Data.xlsx");
 }
