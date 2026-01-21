@@ -2,188 +2,179 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ESP32 Environmental Dashboard</title>
+<title>ESP32 Environmental Dashboard (4 Nodes)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- MQTT.js -->
+<!-- MQTT -->
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-<!-- Chart.js -->
+<!-- Chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Excel -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
 body{
-  font-family:Segoe UI,system-ui;
   margin:0;
+  font-family:Segoe UI,system-ui;
   background:#eef2ff;
 }
 header{
   background:#2563eb;
   color:white;
-  padding:20px;
-}
-.status{
+  padding:18px 24px;
   display:flex;
+  justify-content:space-between;
   align-items:center;
-  gap:10px;
 }
-.dot{
-  width:12px;height:12px;border-radius:50%;
-  background:red;
+button{
+  background:#22c55e;
+  border:none;
+  color:white;
+  padding:10px 16px;
+  font-weight:600;
+  border-radius:8px;
+  cursor:pointer;
 }
-.ok{background:#22c55e;}
-.container{
-  max-width:1200px;
-  margin:auto;
-  padding:20px;
+button:hover{opacity:.85}
+
+.grid{
+  max-width:1800px;
+  margin:20px auto;
+  padding:0 16px;
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
+  grid-template-columns:repeat(4,1fr);
   gap:20px;
 }
 .card{
   background:white;
-  border-radius:14px;
-  padding:20px;
-  box-shadow:0 8px 20px rgba(0,0,0,.1);
+  border-radius:18px;
+  padding:18px;
+  box-shadow:0 12px 30px rgba(0,0,0,.12);
+}
+.card.alert{
+  border:3px solid #ef4444;
+}
+.card h3{
+  margin:0 0 10px;
 }
 .metrics{
   display:grid;
   grid-template-columns:repeat(3,1fr);
-  gap:12px;
-  margin-bottom:16px;
-}
-.metric{
   text-align:center;
+  margin-bottom:10px;
 }
 .value{
-  font-size:32px;
-  font-weight:700;
+  font-size:30px;
+  font-weight:800;
 }
 .temp{color:#ef4444}
 .hum{color:#3b82f6}
 .soil{color:#8b5cf6}
+canvas{height:220px!important}
 </style>
 </head>
 
 <body>
 
 <header>
-  <h2>Environmental Monitoring Dashboard</h2>
-  <div class="status">
-    <div id="dot" class="dot"></div>
-    <div id="connText">Disconnected</div>
-  </div>
+  <h2>ESP32 Environmental Dashboard (4 Nodes)</h2>
+  <button onclick="exportExcel()">⬇ Xuất Excel</button>
 </header>
 
-<div class="container">
-
-<!-- NODE 1 -->
-<div class="card">
-<h3>Node 1</h3>
-<div class="metrics">
-  <div class="metric">
-    <div>Nhiệt độ</div>
-    <div id="t1" class="value temp">--</div>
-  </div>
-  <div class="metric">
-    <div>Độ ẩm KK</div>
-    <div id="h1" class="value hum">--</div>
-  </div>
-  <div class="metric">
-    <div>Độ ẩm đất</div>
-    <div id="s1" class="value soil">--</div>
-  </div>
-</div>
-<canvas id="chart1"></canvas>
-</div>
-
-</div>
+<div class="grid" id="grid"></div>
 
 <script>
-// ================= MQTT CONFIG =================
-const HOST = "a736019f2a5e4fd98c17a4115be133f0.s1.eu.hivemq.cloud";
-const USERNAME = "Nhom19WSN";
-const PASSWORD = "Aenhom19@";
-const brokerUrl = `wss://${HOST}:8884/mqtt`;
+/* ================= CONFIG ================= */
+const HOST="a736019f2a5e4fd98c17a4115be133f0.s1.eu.hivemq.cloud";
+const USERNAME="Nhom19WSN";
+const PASSWORD="Aenhom19@";
+const TOPIC="nodes/+/data";
+const TEMP_LIMIT = 50;
+/* ========================================= */
 
-const TOPIC = "nodes/+/data"; // subscribe wildcard
-// ===============================================
+const nodes = {};
+const charts = {};
+const excelData = [];
 
-// UI
-const dot = document.getElementById("dot");
-const connText = document.getElementById("connText");
+const grid = document.getElementById("grid");
 
-// DATA
-const MAX = 40;
-const labels = [];
-const tempData = [];
-const humData = [];
-const soilData = [];
+// CREATE 4 NODES UI (GIỐNG HỆT)
+for(let i=1;i<=4;i++){
+  grid.innerHTML += `
+  <div class="card" id="card${i}">
+    <h3>Node ${i}</h3>
+    <div class="metrics">
+      <div><div>Nhiệt độ</div><div id="t${i}" class="value temp">--°C</div></div>
+      <div><div>Độ ẩm KK</div><div id="h${i}" class="value hum">--%</div></div>
+      <div><div>Độ ẩm đất</div><div id="s${i}" class="value soil">--%</div></div>
+    </div>
+    <canvas id="c${i}"></canvas>
+  </div>`;
+}
 
-// CHART
-const chart = new Chart(document.getElementById("chart1"),{
-  type:"line",
-  data:{
-    labels,
-    datasets:[
-      {label:"Temp (°C)",data:tempData,borderColor:"#ef4444",tension:.4},
-      {label:"Hum (%)",data:humData,borderColor:"#3b82f6",tension:.4},
-      {label:"Soil (%)",data:soilData,borderColor:"#8b5cf6",tension:.4}
-    ]
-  },
-  options:{responsive:true}
-});
+// INIT CHARTS
+for(let i=1;i<=4;i++){
+  charts[i] = new Chart(document.getElementById(`c${i}`),{
+    type:"line",
+    data:{labels:[],datasets:[
+      {label:"Temp °C",data:[],borderColor:"#ef4444",tension:.4},
+      {label:"Hum %",data:[],borderColor:"#3b82f6",tension:.4},
+      {label:"Soil %",data:[],borderColor:"#8b5cf6",tension:.4}
+    ]},
+    options:{responsive:true,animation:false,scales:{y:{min:0,max:100}}}
+  });
+}
 
-// MQTT CLIENT
-const client = mqtt.connect(brokerUrl,{
+// MQTT
+const client = mqtt.connect(`wss://${HOST}:8884/mqtt`,{
   username:USERNAME,
   password:PASSWORD,
   reconnectPeriod:2000
 });
 
-client.on("connect",()=>{
-  dot.classList.add("ok");
-  connText.textContent="Connected";
-  client.subscribe(TOPIC);
-});
-
-client.on("close",()=>{
-  dot.classList.remove("ok");
-  connText.textContent="Disconnected";
-});
+client.on("connect",()=>client.subscribe(TOPIC));
 
 client.on("message",(topic,msg)=>{
-  try{
-    const json = JSON.parse(msg.toString());
-    if(!json.data || !json.data[0]) return;
+  const json = JSON.parse(msg.toString());
+  json.data.forEach(d=>{
+    const id = d.id;
+    if(id<1||id>4) return;
 
-    const d = json.data[0];
-    const t = d.t;
-    const h = d.h;
-    const s = d.s;
+    const t=d.t, h=d.h, s=d.s;
+    document.getElementById(`t${id}`).innerHTML = t.toFixed(1)+"°C";
+    document.getElementById(`h${id}`).innerHTML = h.toFixed(1)+"%";
+    document.getElementById(`s${id}`).innerHTML = s.toFixed(1)+"%";
 
-    document.getElementById("t1").textContent = t.toFixed(1)+" °C";
-    document.getElementById("h1").textContent = h.toFixed(1)+" %";
-    document.getElementById("s1").textContent = s.toFixed(1)+" %";
+    // ALERT
+    document.getElementById(`card${id}`)
+      .classList.toggle("alert", t>=TEMP_LIMIT);
 
+    const chart = charts[id];
     const time = new Date().toLocaleTimeString();
-    labels.push(time);
-    tempData.push(t);
-    humData.push(h);
-    soilData.push(s);
-
-    if(labels.length>MAX){
-      labels.shift();
-      tempData.shift();
-      humData.shift();
-      soilData.shift();
+    chart.data.labels.push(time);
+    chart.data.datasets[0].data.push(t);
+    chart.data.datasets[1].data.push(h);
+    chart.data.datasets[2].data.push(s);
+    if(chart.data.labels.length>30){
+      chart.data.labels.shift();
+      chart.data.datasets.forEach(ds=>ds.data.shift());
     }
-
     chart.update();
 
-  }catch(e){
-    console.error(e);
-  }
+    excelData.push({
+      Time:new Date().toLocaleString(),
+      Node:id,Temp:t,Hum:h,Soil:s
+    });
+  });
 });
+
+// EXPORT EXCEL
+function exportExcel(){
+  const ws = XLSX.utils.json_to_sheet(excelData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Data");
+  XLSX.writeFile(wb,"ESP32_4Node_Data.xlsx");
+}
 </script>
 
 </body>
