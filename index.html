@@ -1,436 +1,190 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ESP32 Environmental Dashboard - Combined Chart</title>
-  <!-- MQTT.js -->
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      margin: 0;
-      background: linear-gradient(135deg, #e0f2fe, #dbeafe, #c7d2fe);
-      color: #1e293b;
-      min-height: 100vh;
-    }
-    header {
-      background: linear-gradient(to right, #1d4ed8, #3b82f6, #60a5fa);
-      color: white;
-      padding: 24px 20px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-    }
-    .header-content {
-      max-width: 1300px;
-      margin: auto;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 20px;
-    }
-    .header-title {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-    }
-    .header-subtitle {
-      font-size: 15px;
-      opacity: 0.9;
-      margin-top: 4px;
-    }
-    .wrap {
-      max-width: 1300px;
-      margin: 32px auto;
-      padding: 0 20px;
-    }
-    .nodes-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-      gap: 28px;
-    }
-    .node-section {
-      background: rgba(255,255,255,0.92);
-      border-radius: 20px;
-      padding: 24px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.4);
-      transition: all 0.3s ease;
-    }
-    .node-section:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 20px 40px rgba(0,0,0,0.18);
-    }
-    .node-title {
-      font-size: 22px;
-      font-weight: 700;
-      margin-bottom: 20px;
-      color: #1e40af;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .node-title::before {
-      content: '';
-      width: 12px;
-      height: 12px;
-      background: linear-gradient(45deg, #3b82f6, #60a5fa);
-      border-radius: 50%;
-      box-shadow: 0 0 10px rgba(59,130,246,0.5);
-    }
-    .metrics-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-    .metric-card {
-      background: linear-gradient(145deg, #ffffff, #f8fafc);
-      border-radius: 16px;
-      padding: 20px 16px;
-      text-align: center;
-      box-shadow: 0 6px 15px rgba(0,0,0,0.08);
-      transition: transform 0.2s;
-    }
-    .metric-card:hover {
-      transform: scale(1.04);
-    }
-    .metric-label {
-      font-size: 14px;
-      color: #64748b;
-      margin-bottom: 8px;
-      font-weight: 500;
-    }
-    .metric-value {
-      font-size: 42px;
-      font-weight: 800;
-      line-height: 1;
-      display: flex;
-      align-items: baseline;
-      justify-content: center;
-      gap: 6px;
-    }
-    .unit {
-      font-size: 22px;
-      font-weight: 500;
-      opacity: 0.8;
-    }
-    .temp { color: #ef4444; text-shadow: 0 1px 3px rgba(239,68,68,0.3); }
-    .hum { color: #3b82f6; text-shadow: 0 1px 3px rgba(59,130,246,0.3); }
-    .soil { color: #8b5cf6; text-shadow: 0 1px 3px rgba(139,92,246,0.3); }
-    .chart-container {
-      background: white;
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 6px 15px rgba(0,0,0,0.06);
-      margin-top: 16px;
-    }
-    .chart-title {
-      font-weight: 700;
-      margin-bottom: 16px;
-      text-align: center;
-      font-size: 18px;
-      color: #1e293b;
-    }
-    .status-bar {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      background: rgba(255,255,255,0.25);
-      padding: 10px 16px;
-      border-radius: 999px;
-      backdrop-filter: blur(10px);
-    }
-    .dot {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      transition: all 0.4s;
-      box-shadow: 0 0 10px currentColor;
-    }
-    .ok { background: #22c55e; }
-    .bad { background: #ef4444; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32 Environmental Dashboard</title>
+
+<!-- MQTT.js -->
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+  font-family:Segoe UI,system-ui;
+  margin:0;
+  background:#eef2ff;
+}
+header{
+  background:#2563eb;
+  color:white;
+  padding:20px;
+}
+.status{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.dot{
+  width:12px;height:12px;border-radius:50%;
+  background:red;
+}
+.ok{background:#22c55e;}
+.container{
+  max-width:1200px;
+  margin:auto;
+  padding:20px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
+  gap:20px;
+}
+.card{
+  background:white;
+  border-radius:14px;
+  padding:20px;
+  box-shadow:0 8px 20px rgba(0,0,0,.1);
+}
+.metrics{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+  margin-bottom:16px;
+}
+.metric{
+  text-align:center;
+}
+.value{
+  font-size:32px;
+  font-weight:700;
+}
+.temp{color:#ef4444}
+.hum{color:#3b82f6}
+.soil{color:#8b5cf6}
+</style>
 </head>
+
 <body>
+
 <header>
-  <div class="header-content">
-    <div>
-      <div class="header-title">Environmental Monitoring Dashboard</div>
-      <div class="header-subtitle">Nhiệt độ • Độ ẩm không khí • Độ ẩm đất • Multi Nodes (ESP32)</div>
-    </div>
-    <div class="status-bar">
-      <div id="dot" class="dot bad"></div>
-      <div>
-        <div id="connText" style="font-weight:700; font-size:16px;">Disconnected</div>
-        <div id="lastMsg" style="font-size:13px; opacity:0.9;">Last update: --</div>
-      </div>
-    </div>
+  <h2>Environmental Monitoring Dashboard</h2>
+  <div class="status">
+    <div id="dot" class="dot"></div>
+    <div id="connText">Disconnected</div>
   </div>
 </header>
 
-<div class="wrap">
-  <div class="nodes-grid">
-    <!-- Node 1 -->
-    <div class="node-section">
-      <div class="node-title">Node 1 - Khu vực A</div>
-      <div class="metrics-row">
-        <div class="metric-card">
-          <div class="metric-label">Nhiệt độ</div>
-          <div id="tempText1" class="metric-value temp">-- <span class="unit">°C</span></div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Độ ẩm KK</div>
-          <div id="humText1" class="metric-value hum">-- <span class="unit">%</span></div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Độ ẩm đất</div>
-          <div id="soilText1" class="metric-value soil">-- <span class="unit">%</span></div>
-        </div>
-      </div>
-      <div class="chart-container">
-        <div class="chart-title">Biểu đồ tổng hợp (Nhiệt độ - Độ ẩm KK - Độ ẩm đất)</div>
-        <canvas id="combinedChart1"></canvas>
-      </div>
-    </div>
+<div class="container">
 
-    <!-- Node 2 -->
-    <div class="node-section">
-      <div class="node-title">Node 2 - Khu vực B</div>
-      <div class="metrics-row">
-        <div class="metric-card">
-          <div class="metric-label">Nhiệt độ</div>
-          <div id="tempText2" class="metric-value temp">-- <span class="unit">°C</span></div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Độ ẩm KK</div>
-          <div id="humText2" class="metric-value hum">-- <span class="unit">%</span></div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Độ ẩm đất</div>
-          <div id="soilText2" class="metric-value soil">-- <span class="unit">%</span></div>
-        </div>
-      </div>
-      <div class="chart-container">
-        <div class="chart-title">Biểu đồ tổng hợp (Nhiệt độ - Độ ẩm KK - Độ ẩm đất)</div>
-        <canvas id="combinedChart2"></canvas>
-      </div>
-    </div>
-
-    <!-- Node 3 -->
-    <div class="node-section">
-      <div class="node-title">Node 3 - Khu vực C</div>
-      <div class="metrics-row">
-        <div class="metric-card">
-          <div class="metric-label">Nhiệt độ</div>
-          <div id="tempText3" class="metric-value temp">-- <span class="unit">°C</span></div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Độ ẩm KK</div>
-          <div id="humText3" class="metric-value hum">-- <span class="unit">%</span></div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Độ ẩm đất</div>
-          <div id="soilText3" class="metric-value soil">-- <span class="unit">%</span></div>
-        </div>
-      </div>
-      <div class="chart-container">
-        <div class="chart-title">Biểu đồ tổng hợp (Nhiệt độ - Độ ẩm KK - Độ ẩm đất)</div>
-        <canvas id="combinedChart3"></canvas>
-      </div>
-    </div>
+<!-- NODE 1 -->
+<div class="card">
+<h3>Node 1</h3>
+<div class="metrics">
+  <div class="metric">
+    <div>Nhiệt độ</div>
+    <div id="t1" class="value temp">--</div>
   </div>
+  <div class="metric">
+    <div>Độ ẩm KK</div>
+    <div id="h1" class="value hum">--</div>
+  </div>
+  <div class="metric">
+    <div>Độ ẩm đất</div>
+    <div id="s1" class="value soil">--</div>
+  </div>
+</div>
+<canvas id="chart1"></canvas>
+</div>
+
 </div>
 
 <script>
-/* ================== SỬA 3 CHỖ NÀY ================== */
+// ================= MQTT CONFIG =================
 const HOST = "a736019f2a5e4fd98c17a4115be133f0.s1.eu.hivemq.cloud";
 const USERNAME = "Nhom19WSN";
 const PASSWORD = "Aenhom19@";
-/* =================================================== */
-const WS_PORT = 8884;
-const brokerUrl = `wss://${HOST}:${WS_PORT}/mqtt`;
-const TOPICS = ["esp32/dht22/1", "esp32/dht22/2", "esp32/dht22/3"];
+const brokerUrl = `wss://${HOST}:8884/mqtt`;
 
-// UI elements
+const TOPIC = "nodes/+/data"; // subscribe wildcard
+// ===============================================
+
+// UI
 const dot = document.getElementById("dot");
 const connText = document.getElementById("connText");
-const lastMsg = document.getElementById("lastMsg");
 
-// Data for each node
-const MAX_POINTS = 60;
-const nodeData = Array.from({length: 3}, (_, i) => ({
-  labels: [],
-  tempData: [], humData: [], soilData: [],
-  tempText: document.getElementById(`tempText${i+1}`),
-  humText: document.getElementById(`humText${i+1}`),
-  soilText: document.getElementById(`soilText${i+1}`),
-  combinedChart: null
-}));
+// DATA
+const MAX = 40;
+const labels = [];
+const tempData = [];
+const humData = [];
+const soilData = [];
 
-// Initialize combined charts
-nodeData.forEach((node, idx) => {
-  const n = idx + 1;
-
-  node.combinedChart = new Chart(document.getElementById(`combinedChart${n}`), {
-    type: 'line',
-    data: {
-      labels: node.labels,
-      datasets: [
-        {
-          label: 'Nhiệt độ (°C)',
-          data: node.tempData,
-          borderColor: '#ef4444',
-          backgroundColor: 'rgba(239,68,68,0.12)',
-          tension: 0.4,
-          fill: true,
-          pointRadius: 3,
-          yAxisID: 'y-temp'
-        },
-        {
-          label: 'Độ ẩm KK (%)',
-          data: node.humData,
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59,130,246,0.12)',
-          tension: 0.4,
-          fill: true,
-          pointRadius: 3,
-          yAxisID: 'y-hum'
-        },
-        {
-          label: 'Độ ẩm đất (%)',
-          data: node.soilData,
-          borderColor: '#8b5cf6',
-          backgroundColor: 'rgba(139,92,246,0.12)',
-          tension: 0.4,
-          fill: true,
-          pointRadius: 3,
-          yAxisID: 'y-soil'
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      animation: { duration: 400 },
-      interaction: {
-        mode: 'index',
-        intersect: false,
-      },
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: { font: { size: 13 } }
-        },
-        tooltip: {
-          mode: 'index',
-          intersect: false
-        }
-      },
-      scales: {
-        x: { title: { display: true, text: 'Thời gian' } },
-        'y-temp': {
-          type: 'linear',
-          position: 'left',
-          title: { display: true, text: 'Nhiệt độ (°C)', color: '#ef4444' },
-          grid: { drawOnChartArea: false }
-        },
-        'y-hum': {
-          type: 'linear',
-          position: 'right',
-          title: { display: true, text: 'Độ ẩm KK (%)', color: '#3b82f6' },
-          grid: { drawOnChartArea: false },
-          min: 0,
-          max: 100
-        },
-        'y-soil': {
-          type: 'linear',
-          position: 'right',
-          title: { display: true, text: 'Độ ẩm đất (%)', color: '#8b5cf6' },
-          grid: { drawOnChartArea: false },
-          min: 0,
-          max: 100,
-          grid: { borderDash: [5, 5] }
-        }
-      }
-    }
-  });
+// CHART
+const chart = new Chart(document.getElementById("chart1"),{
+  type:"line",
+  data:{
+    labels,
+    datasets:[
+      {label:"Temp (°C)",data:tempData,borderColor:"#ef4444",tension:.4},
+      {label:"Hum (%)",data:humData,borderColor:"#3b82f6",tension:.4},
+      {label:"Soil (%)",data:soilData,borderColor:"#8b5cf6",tension:.4}
+    ]
+  },
+  options:{responsive:true}
 });
 
-// MQTT Client
-const client = mqtt.connect(brokerUrl, {
-  username: USERNAME,
-  password: PASSWORD,
-  clean: true,
-  connectTimeout: 8000,
-  reconnectPeriod: 2000,
-  keepalive: 30
+// MQTT CLIENT
+const client = mqtt.connect(brokerUrl,{
+  username:USERNAME,
+  password:PASSWORD,
+  reconnectPeriod:2000
 });
 
-client.on("connect", () => {
-  setConnected(true);
-  TOPICS.forEach(topic => client.subscribe(topic));
+client.on("connect",()=>{
+  dot.classList.add("ok");
+  connText.textContent="Connected";
+  client.subscribe(TOPIC);
 });
 
-client.on("reconnect", () => setConnected(false, "Đang kết nối lại..."));
-client.on("close", () => setConnected(false));
-client.on("error", () => setConnected(false, "Lỗi kết nối"));
+client.on("close",()=>{
+  dot.classList.remove("ok");
+  connText.textContent="Disconnected";
+});
 
-client.on("message", (topic, msg) => {
-  try {
-    const data = JSON.parse(msg.toString());
-    const t = Number(data.temp ?? data.temperature);
-    const h = Number(data.hum ?? data.humidity);
-    const s = Number(data.soil ?? data.soilMoisture ?? 0);
+client.on("message",(topic,msg)=>{
+  try{
+    const json = JSON.parse(msg.toString());
+    if(!json.data || !json.data[0]) return;
 
-    const nodeIndex = TOPICS.indexOf(topic);
-    if (nodeIndex === -1) return;
+    const d = json.data[0];
+    const t = d.t;
+    const h = d.h;
+    const s = d.s;
 
-    const node = nodeData[nodeIndex];
-    const now = new Date();
+    document.getElementById("t1").textContent = t.toFixed(1)+" °C";
+    document.getElementById("h1").textContent = h.toFixed(1)+" %";
+    document.getElementById("s1").textContent = s.toFixed(1)+" %";
 
-    // Update values
-    node.tempText.innerHTML = isNaN(t) ? '--' : `${t.toFixed(1)} <span class="unit">°C</span>`;
-    node.humText.innerHTML = isNaN(h) ? '--' : `${h.toFixed(1)} <span class="unit">%</span>`;
-    node.soilText.innerHTML = isNaN(s) ? '--' : `${s.toFixed(1)} <span class="unit">%</span>`;
+    const time = new Date().toLocaleTimeString();
+    labels.push(time);
+    tempData.push(t);
+    humData.push(h);
+    soilData.push(s);
 
-    // Update global last message
-    lastMsg.textContent = `Last update: ${now.toLocaleTimeString('vi-VN')}`;
-
-    // Add to chart
-    const timeLabel = now.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-    node.labels.push(timeLabel);
-    node.tempData.push(t);
-    node.humData.push(h);
-    node.soilData.push(s);
-
-    if (node.labels.length > MAX_POINTS) {
-      node.labels.shift();
-      node.tempData.shift();
-      node.humData.shift();
-      node.soilData.shift();
+    if(labels.length>MAX){
+      labels.shift();
+      tempData.shift();
+      humData.shift();
+      soilData.shift();
     }
 
-    node.combinedChart.update();
+    chart.update();
 
-  } catch (e) {
-    console.error("Lỗi parse dữ liệu:", e);
+  }catch(e){
+    console.error(e);
   }
 });
-
-function setConnected(ok, text = null) {
-  if (ok) {
-    dot.classList.remove("bad");
-    dot.classList.add("ok");
-    connText.textContent = text || "Đã kết nối";
-  } else {
-    dot.classList.remove("ok");
-    dot.classList.add("bad");
-    connText.textContent = text || "Mất kết nối";
-  }
-}
 </script>
+
 </body>
 </html>
