@@ -1,148 +1,227 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>Nhom_19_WSN</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<title>Nhom_19_WSN</title>
+
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- XLSX -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
-body{margin:0;font-family:Segoe UI;background:#eef2ff}
-header{
-  background:#2563eb;color:white;
-  padding:16px 24px;
-  display:flex;justify-content:space-between;align-items:center
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #eef2fb;
 }
-button{
-  background:#22c55e;border:none;color:white;
-  padding:10px 16px;font-weight:700;border-radius:8px
+
+header {
+    background: #2563eb;
+    color: white;
+    padding: 18px 30px;
+    font-size: 26px;
+    font-weight: bold;
 }
-.grid{
-  max-width:1800px;margin:20px auto;padding:0 16px;
-  display:grid;grid-template-columns:repeat(4,1fr);gap:20px
+
+.toolbar {
+    padding: 15px 30px;
 }
-.card{
-  background:white;border-radius:18px;padding:18px;
-  box-shadow:0 12px 30px rgba(0,0,0,.12)
+
+button {
+    padding: 10px 16px;
+    font-size: 14px;
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
 }
-.card.alert{
-  border:4px solid #ef4444;
-  background:#fff1f2;
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    padding: 20px 30px;
 }
-.metrics{
-  display:grid;grid-template-columns:repeat(3,1fr);
-  text-align:center;margin-bottom:10px
+
+.card {
+    background: white;
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
 }
-.value{font-size:30px;font-weight:800}
-.temp{color:#ef4444}
-.hum{color:#3b82f6}
-.soil{color:#8b5cf6}
-canvas{height:220px!important}
+
+.card.alert {
+    border: 3px solid red;
+}
+
+.card h3 {
+    margin: 0 0 10px;
+    font-size: 20px;
+}
+
+.values {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.value {
+    text-align: center;
+    flex: 1;
+    font-weight: bold;
+}
+
+.temp { color: #ef4444; }
+.hum  { color: #2563eb; }
+.soil { color: #7c3aed; }
+
+canvas {
+    width: 100%;
+    height: 180px;
+}
 </style>
 </head>
 
 <body>
 
-<header>
-  <h2>ESP32 Environmental Dashboard (4 Nodes)</h2>
-  <button onclick="exportExcel()">⬇ Xuất Excel</button>
-</header>
+<header>Nhom_19_WSN</header>
 
-<div class="grid" id="grid"></div>
+<div class="toolbar">
+    <button onclick="exportExcel()">📊 Xuất Excel</button>
+</div>
+
+<div class="grid">
+    <div class="card" id="node1"></div>
+    <div class="card" id="node2"></div>
+    <div class="card" id="node3"></div>
+    <div class="card" id="node4"></div>
+</div>
 
 <script>
-/* ====== CONFIG ====== */
-const HOST="a736019f2a5e4fd98c17a4115be133f0.s1.eu.hivemq.cloud";
-const USERNAME="Nhom19WSN";
-const PASSWORD="Aenhom19@";
-const TOPIC="nodes/+/data";
-const TEMP_LIMIT = 18; // 🔥 TEST NGƯỠNG 18
-/* =================== */
+/* ================== CẤU HÌNH ================== */
+const TEMP_LIMIT = 18;
+const MAX_POINTS = 10;
 
-const charts={}, excelData=[];
-const grid=document.getElementById("grid");
+/* ================== KHỞI TẠO ================== */
+const nodes = [];
+const charts = [];
 
-// UI 4 NODE GIỐNG HỆT
-for(let i=1;i<=4;i++){
-  grid.innerHTML+=`
-  <div class="card" id="card${i}">
-    <h3>Node ${i}</h3>
-    <div class="metrics">
-      <div><div>Nhiệt độ</div><div id="t${i}" class="value temp">--°C</div></div>
-      <div><div>Độ ẩm KK</div><div id="h${i}" class="value hum">--%</div></div>
-      <div><div>Độ ẩm đất</div><div id="s${i}" class="value soil">--%</div></div>
-    </div>
-    <canvas id="c${i}"></canvas>
-  </div>`;
-}
+for (let i = 1; i <= 4; i++) {
+    const card = document.getElementById(`node${i}`);
+    card.innerHTML = `
+        <h3>Node ${i}</h3>
+        <div class="values">
+            <div class="value temp" id="t${i}">-- °C</div>
+            <div class="value hum" id="h${i}">-- %</div>
+            <div class="value soil" id="s${i}">-- %</div>
+        </div>
+        <canvas></canvas>
+    `;
 
-// CHART
-for(let i=1;i<=4;i++){
-  charts[i]=new Chart(document.getElementById(`c${i}`),{
-    type:"line",
-    data:{labels:[],datasets:[
-      {label:"Temp °C",data:[],borderColor:"#ef4444",tension:.4},
-      {label:"Hum %",data:[],borderColor:"#3b82f6",tension:.4},
-      {label:"Soil %",data:[],borderColor:"#8b5cf6",tension:.4}
-    ]},
-    options:{responsive:true,animation:false,scales:{y:{min:0,max:100}}}
-  });
-}
-
-// MQTT
-const client=mqtt.connect(`wss://${HOST}:8884/mqtt`,{
-  username:USERNAME,password:PASSWORD,reconnectPeriod:2000
-});
-client.on("connect",()=>client.subscribe(TOPIC));
-
-client.on("message",(topic,msg)=>{
-  const payload=JSON.parse(msg.toString());
-  if(!payload.data) return;
-
-  payload.data.slice(0,4).forEach((d,index)=>{
-    const node=index+1;
-    const t=Number(d.t), h=Number(d.h), s=Number(d.s);
-
-    document.getElementById(`t${node}`).innerHTML=t.toFixed(1)+"°C";
-    document.getElementById(`h${node}`).innerHTML=h.toFixed(1)+"%";
-    document.getElementById(`s${node}`).innerHTML=s.toFixed(1)+"%";
-
-    // 🔥 ALERT – ĐẢM BẢO CHẠY
-    const card=document.getElementById(`card${node}`);
-    if(t>=TEMP_LIMIT){
-      card.classList.add("alert");
-    }else{
-      card.classList.remove("alert");
-    }
-
-    const chart=charts[node];
-    const time=new Date().toLocaleTimeString();
-    chart.data.labels.push(time);
-    chart.data.datasets[0].data.push(t);
-    chart.data.datasets[1].data.push(h);
-    chart.data.datasets[2].data.push(s);
-    if(chart.data.labels.length>30){
-      chart.data.labels.shift();
-      chart.data.datasets.forEach(ds=>ds.data.shift());
-    }
-    chart.update();
-
-    excelData.push({
-      Time:new Date().toLocaleString(),
-      Node:node,Temp:t,Hum:h,Soil:s
+    nodes.push({
+        id: i,
+        time: [],
+        temp: [],
+        hum: [],
+        soil: []
     });
-  });
-});
 
-// EXCEL
-function exportExcel(){
-  const ws=XLSX.utils.json_to_sheet(excelData);
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,"Data");
-  XLSX.writeFile(wb,"ESP32_4Node_Data.xlsx");
+    const ctx = card.querySelector("canvas").getContext("2d");
+    charts.push(new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                { label: 'Temp (°C)', data: [], borderColor: 'red', tension: 0.3 },
+                { label: 'Hum (%)',  data: [], borderColor: 'blue', tension: 0.3 },
+                { label: 'Soil (%)', data: [], borderColor: 'purple', tension: 0.3 }
+            ]
+        },
+        options: {
+            responsive: true,
+            animation: false,
+            scales: { y: { min: 0, max: 100 } }
+        }
+    }));
+}
+
+/* ================== NHẬN DỮ LIỆU ================== */
+/*
+ESP32 gửi JSON:
+{
+  node: 1,
+  temp: 22.5,
+  hum: 56.2,
+  soil: 90
+}
+*/
+
+const lastValue = {};
+
+function onReceiveData(data) {
+    const key = data.node;
+    const signature = `${data.temp}-${data.hum}-${data.soil}`;
+    if (lastValue[key] === signature) return;
+    lastValue[key] = signature;
+
+    updateNode(data.node - 1, data.temp, data.hum, data.soil);
+}
+
+function updateNode(i, temp, hum, soil) {
+    const node = nodes[i];
+    const now = new Date().toLocaleTimeString();
+
+    node.time.push(now);
+    node.temp.push(temp);
+    node.hum.push(hum);
+    node.soil.push(soil);
+
+    if (node.time.length > MAX_POINTS) {
+        node.time.shift();
+        node.temp.shift();
+        node.hum.shift();
+        node.soil.shift();
+    }
+
+    document.getElementById(`t${i+1}`).innerText = temp + " °C";
+    document.getElementById(`h${i+1}`).innerText = hum + " %";
+    document.getElementById(`s${i+1}`).innerText = soil + " %";
+
+    const card = document.getElementById(`node${i+1}`);
+    temp > TEMP_LIMIT ? card.classList.add("alert")
+                      : card.classList.remove("alert");
+
+    const chart = charts[i];
+    chart.data.labels = node.time;
+    chart.data.datasets[0].data = node.temp;
+    chart.data.datasets[1].data = node.hum;
+    chart.data.datasets[2].data = node.soil;
+    chart.update();
+}
+
+/* ================== XUẤT EXCEL ================== */
+function exportExcel() {
+    const rows = [["Node", "Time", "Temp", "Hum", "Soil"]];
+    nodes.forEach(n => {
+        for (let i = 0; i < n.time.length; i++) {
+            rows.push([
+                `Node ${n.id}`,
+                n.time[i],
+                n.temp[i],
+                n.hum[i],
+                n.soil[i]
+            ]);
+        }
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "WSN_Data");
+    XLSX.writeFile(wb, "Nhom_19_WSN.xlsx");
 }
 </script>
 
